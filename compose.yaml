@@ -106,7 +106,7 @@ services:
     restart: unless-stopped
 
   jellyseerr:
-    image: fallenbagel/jellyseerr:latest
+    image: fallenbagel/jellyseerr
     container_name: jellyseerr
     environment:
       - TZ=${TZ}
