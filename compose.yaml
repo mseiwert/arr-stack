@@ -1,0 +1,147 @@
+services:
+
+  gluetun:
+    image: ghcr.io/qdm12/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8888:8888/tcp # HTTP proxy
+      - 8388:8388/tcp # Shadowsocks
+      - 8388:8388/udp # Shadowsocks
+      # sabnzbd port
+      - 8080:8080/tcp
+      # nzbget
+      - 6789:6789
+      # qbittorrent
+      - 8081:8081/tcp
+      - 6881:6881/tcp
+      - 6881:6881/udp
+    volumes:
+      - ${CONFIG_ROOT}/gluetun:/gluetun
+    environment:
+      - FIREWALL_OUTBOUND_SUBNETS=172.20.0.0/16 # needed so that containers can reach
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER}
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
+      - SERVER_CITIES=${SERVER_CITIES}
+      - OWNED_ONLY=yes
+      - TZ=${TZ}
+      - UPDATER_PERIOD=24h
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - 9696:9696
+    volumes:
+      - ${CONFIG_ROOT}/prowlarr:/config'
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_ROOT}/sonarr/data:/config
+      - ${HDD_STORAGE}/tv:/tv
+      - ${HDD_STORAGE}/complete:/complete
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_ROOT}/radarr/data:/config
+      - ${HDD_STORAGE}/movies:/movies
+      - ${HDD_STORAGE}/complete:/complete
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_ROOT}/sabnzdb:/config
+      - ${HDD_STORAGE}/complete:/complete
+      - ${HDD_STORAGE}/incomplete:/incomplete
+    network_mode: service:gluetun
+    restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=8081
+      - TORRENTING_PORT=6881
+    volumes:
+      - ${CONFIG_ROOT}/qbittorrent:/config
+      - ${HDD_STORAGE}/complete:/complete
+      - ${HDD_STORAGE}/incomplete:/incomplete
+    network_mode: service:gluetun
+    restart: unless-stopped
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_ROOT}/jellyseer/app/config:/app/config
+    ports:
+      - 5055:5055
+    restart: unless-stopped
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - JELLYFIN_PublishedServerUrl=http://192.168.20.11
+    volumes:
+      - ${CONFIG_ROOT}/jellyfin/config:/config
+      - ${CONFIG_ROOT}/jellyfin/cache:/cache
+      - ${HDD_STORAGE}/movies:/data/movies
+      - ${HDD_STORAGE}/tv:/data/tv
+    ports:
+      - 8096:8096
+      - 8920:8920
+      - 7359:7359/udp
+      - 1900:1900/udp
+    restart: unless-stopped
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 3600
+    restart: unless-stopped
